@@ -1,0 +1,3 @@
+/home/alexpy/Documents/proyects/snake_rl/build/CMakeFiles/snake_env.dir
+/home/alexpy/Documents/proyects/snake_rl/build/CMakeFiles/edit_cache.dir
+/home/alexpy/Documents/proyects/snake_rl/build/CMakeFiles/rebuild_cache.dir

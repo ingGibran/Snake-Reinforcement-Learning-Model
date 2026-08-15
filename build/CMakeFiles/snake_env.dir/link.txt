@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -shared  -o snake_env CMakeFiles/snake_env.dir/snake_env.cpp.o 
