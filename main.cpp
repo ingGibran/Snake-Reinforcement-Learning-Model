@@ -2,206 +2,170 @@
 #include <raylib.h>
 #include <deque>
 
-enum Direction {
-    W,
-    A,
-    S,
-    D
+constexpr int GRID_SIZE = 10;
+constexpr int SCREEN_SIZE = 800;
+constexpr int CELL_SIZE = SCREEN_SIZE / GRID_SIZE;
+
+enum Direction { UP, DOWN, LEFT, RIGHT, NONE };
+enum State { PLAY, GAMEOVER };
+
+class Apple {
+public:
+    Vector2 pos;
+
+    Apple() { pos = {5, 8}; }
+
+    void Respawn(const std::deque<Vector2>& snakeBody) {
+        bool onSnake = true;
+        while (onSnake) {
+            pos.x = GetRandomValue(0, GRID_SIZE - 1);
+            pos.y = GetRandomValue(0, GRID_SIZE - 1);
+            onSnake = false;
+            for (const auto& segment : snakeBody) {
+                if (segment.x == pos.x && segment.y == pos.y) {
+                    onSnake = true;
+                    break;
+                }
+            }
+        }
+    }
 };
-
-enum State {
-    START,
-    PLAY,
-    GAMEOVER
-};
-
-State game_state = START;
-
 
 class Snake {
 public:
-    std::deque<Vector2> dq;
+    std::deque<Vector2> body;
 
-    bool IsInSnake(Vector2 vector) {
-        for (Vector2 coordenates : dq) {
-            if (vector.x == coordenates.x && vector.y == coordenates.y) {
+    Snake() {
+        body = { {5, 5}, {4, 5}, {3, 5} };
+    }
+
+    bool IsInSnake(const Vector2& vec, bool ignoreTail = false) const {
+        size_t limit = ignoreTail ? body.size() - 1 : body.size();
+        for (size_t i = 0; i < limit; ++i) {
+            if (vec.x == body[i].x && vec.y == body[i].y) {
                 return true;
             }
         }
         return false;
     }
 
-    void Move(Direction direction) {
+    void Move(Direction dir, Apple& apple, State& gameState) {
+        if (dir == NONE) return;
 
-        // Take Front
-        Vector2 front = dq.front();
-        int index_x = front.x;
-        int index_y = front.y;
+        Vector2 newHead = body.front();
 
-        if (direction == W) {
-            index_y--;
-            if (index_y < 0) {
-                index_y = 9;
-            }
-            std::cout << "W" << std::endl;
-        }
-        else if (direction == A) {
-            index_x--;
-            if (index_x < 0) {
-                index_x = 9;
-            }
-            std::cout << "A" << std::endl;
-        }
-        else if (direction == S) {
-            index_y++;
-            if (index_y > 9) {
-                index_y = 0;
-            }
-            std::cout << "S" << std::endl;
-        }
-        else if (direction == D) {
-            index_x++;
-            if (index_x > 9) {
-                index_x = 0;
-            }
-            std::cout << "D" << std::endl;
+        switch (dir) {
+            case UP:    newHead.y = (newHead.y - 1 < 0) ? GRID_SIZE - 1 : newHead.y - 1; break;
+            case DOWN:  newHead.y = (newHead.y + 1 >= GRID_SIZE) ? 0 : newHead.y + 1; break;
+            case LEFT:  newHead.x = (newHead.x - 1 < 0) ? GRID_SIZE - 1 : newHead.x - 1; break;
+            case RIGHT: newHead.x = (newHead.x + 1 >= GRID_SIZE) ? 0 : newHead.x + 1; break;
+            default: break;
         }
 
-        // New front
-        Vector2 new_front;
-        new_front.x = index_x;
-        new_front.y = index_y;
-
-        // Check Collision
-        if ( IsInSnake(new_front) ) {
-            game_state = GAMEOVER;
+        // Si colisiona con el cuerpo (ignorando la cola que va a avanzar)
+        bool eatsApple = (newHead.x == apple.pos.x && newHead.y == apple.pos.y);
+        if (IsInSnake(newHead, !eatsApple)) {
+            gameState = GAMEOVER;
+            return;
         }
-        // Add new front
-        dq.push_front( new_front );
 
-        // Delete Back
-        dq.pop_back();
+        body.push_front(newHead);
 
+        if (eatsApple) {
+            apple.Respawn(body);
+        } else {
+            body.pop_back();
+        }
     }
 
-};
-
-class Apple {
-public:
-    int i, j;
-
-    void Draw() {
-
+    void Reset() {
+        body = { {5, 5}, {4, 5}, {3, 5} };
     }
 };
 
 int main() {
-
-    /*
-    SCREEN SETTINGS
-    */
-    int screen_size = 800;
-    InitWindow(screen_size, screen_size, "Snake");
+    InitWindow(SCREEN_SIZE, SCREEN_SIZE, "Snake - Optimizado");
     SetTargetFPS(60);
 
-    /*
-    GAME SETTINGS
-    */
-    float snake_velocity = 0.3f;
+    State gameState = PLAY;
+    float snakeSpeed = 0.15f;
+    float timer = 0.0f;
 
+    Direction inputDir = RIGHT;
+    Direction currentDir = RIGHT;
 
-    /*
-    FLOOR
-    */
-    int floor_size = screen_size/10;
+    Snake snake;
+    Apple apple;
 
-
-    /*
-    SNAKE
-    */
-    Direction snake_direction = D;
-    Snake snake {std::deque<Vector2>{ Vector2{3,5}, Vector2{4,5}, Vector2{5,5} } };
-
-    float time_count = 0;
     while (!WindowShouldClose()) {
+        float dt = GetFrameTime();
 
-        /*
-        CALCULATE
-        */
-        time_count += GetFrameTime();
-        std::cout << "Time: " << time_count << std::endl;
+        // 1. INPUT
+        if ((IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) && currentDir != DOWN)    inputDir = UP;
+        if ((IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) && currentDir != UP)    inputDir = DOWN;
+        if ((IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) && currentDir != RIGHT) inputDir = LEFT;
+        if ((IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) && currentDir != LEFT) inputDir = RIGHT;
 
-
-
-
-        /*
-        UPDATE
-        */
-
-        // Move Snake
-        if (time_count >= snake_velocity) {
-            time_count = 0;
-            snake.Move(snake_direction);
+        if (gameState == GAMEOVER && IsKeyPressed(KEY_R)) {
+            snake.Reset();
+            apple.Respawn(snake.body);
+            inputDir = RIGHT;
+            currentDir = RIGHT;
+            gameState = PLAY;
         }
 
-        // Change Direction
-        if (IsKeyPressed(KEY_W)) {
-            snake_direction = W;
-        }
-        else if (IsKeyPressed(KEY_A)) {
-            snake_direction = A;
-        }
-        else if (IsKeyPressed(KEY_S)) {
-            snake_direction = S;
-        }
-        else if (IsKeyPressed(KEY_D)) {
-            snake_direction = D;
+        // 2. UPDATE
+        if (gameState == PLAY) {
+            timer += dt;
+            if (timer >= snakeSpeed) {
+                timer = 0.0f;
+                currentDir = inputDir;
+                snake.Move(currentDir, apple, gameState);
+            }
         }
 
-        /*
-        DRAWING
-        */
+        // 3. DRAW
         BeginDrawing();
+        ClearBackground(RAYWHITE);
 
-        // Floor
-        for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 10; j++) {
+        // Fondo de tablero
+        for (int i = 0; i < GRID_SIZE; i++) {
+            for (int j = 0; j < GRID_SIZE; j++) {
+                DrawRectangle(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE,
+                              ((i + j) % 2 == 0) ? BLUE : SKYBLUE);
+            }
+        }
 
+        // Manzana
+        DrawRectangle(apple.pos.x * CELL_SIZE + 15, apple.pos.y * CELL_SIZE + 15, 50, 50, RED);
+        DrawRectangle(apple.pos.x * CELL_SIZE + 35, apple.pos.y * CELL_SIZE + 5, 10, 18, BROWN);
 
-                // Floor
-                if ( (i + j) % 2 == 0 ) { // It's Pair
-                    DrawRectangle(i*screen_size/10, j*screen_size/10, floor_size, floor_size, BLUE);
-                }
-                else {
-                    DrawRectangle(i*screen_size/10, j*screen_size/10, floor_size, floor_size, SKYBLUE);
-                }
+        // Snake
+        for (size_t i = 0; i < snake.body.size(); ++i) {
+            int px = snake.body[i].x * CELL_SIZE;
+            int py = snake.body[i].y * CELL_SIZE;
 
-                // Snake
-                Vector2 coordenates;
-                coordenates.x = i;
-                coordenates.y = j;
-                if (snake.dq.front().x == i && snake.dq.front().y == j) { // Head
-                    DrawRectangle(i*screen_size/10, j*screen_size/10, floor_size, floor_size, GREEN);
+            DrawRectangle(px, py, CELL_SIZE, CELL_SIZE, GREEN);
 
-                    DrawRectangle(i*screen_size/10+floor_size/2-30, j*screen_size/10+10, 20, 20, WHITE);
-                    DrawRectangle(i*screen_size/10+floor_size/2-30, j*screen_size/10+10, 10, 10, DARKGREEN);
+            // Eyes
+            if (i == 0) {
+                DrawRectangle(px + 15, py + 15, 15, 15, WHITE);
+                DrawRectangle(px + 18, py + 18, 8, 8, BLACK);
+                DrawRectangle(px + 50, py + 15, 15, 15, WHITE);
+                DrawRectangle(px + 53, py + 18, 8, 8, BLACK);
+            }
+        }
 
-                    DrawRectangle(i*screen_size/10+floor_size/2, j*screen_size/10+10, 20, 20, WHITE);
-                    DrawRectangle(i*screen_size/10+floor_size/2, j*screen_size/10+10, 10, 10, DARKGREEN);
-                }
-                else if ( snake.IsInSnake(coordenates) ) { // Body
-                    DrawRectangle(i*screen_size/10, j*screen_size/10, floor_size, floor_size, GREEN);
-                }
-
-
-            };
+        // Game Over
+        if (gameState == GAMEOVER) {
+            DrawRectangle(0, 0, SCREEN_SIZE, SCREEN_SIZE, Fade(BLACK, 0.6f));
+            DrawText("GAME OVER", SCREEN_SIZE / 2 - MeasureText("GAME OVER", 60) / 2, 320, 60, RED);
+            DrawText("Presiona [R] para reiniciar", SCREEN_SIZE / 2 - MeasureText("Presiona [R] para reiniciar", 20) / 2, 410, 20, RAYWHITE);
         }
 
         EndDrawing();
-
     }
 
     CloseWindow();
-
     return 0;
 }
