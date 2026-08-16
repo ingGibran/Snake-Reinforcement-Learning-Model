@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -shared  -o snake_env_gui.so CMakeFiles/snake_env_gui.dir/snake_env_gui.cpp.o  _deps/raylib-build/raylib/libraylib.a -lm -lpthread /usr/lib/x86_64-linux-gnu/libOpenGL.so /usr/lib/x86_64-linux-gnu/libGLX.so /usr/lib/x86_64-linux-gnu/libGLU.so _deps/raylib-build/raylib/external/glfw/src/libglfw3.a /usr/lib/x86_64-linux-gnu/librt.a -lm -ldl 

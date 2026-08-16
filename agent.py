@@ -45,7 +45,7 @@ class Agent:
     def get_action(self, state):
         # EXPLORACIÓN VS EXPLOTACIÓN
         # Al inicio, hace muchos movimientos al azar para descubrir el juego
-        self.epsilon = 80 - self.n_games
+        self.epsilon = 100 - self.n_games
         final_move = [0, 0, 0]
         
         if random.randint(0, 200) < self.epsilon:
@@ -68,13 +68,14 @@ def train():
     
     print("Iniciando entrenamiento...")
 
+    frame_iteration = 0
+    num_iteration = 0
+    
     while True:
         # Obtener estado anterior
         state_old = agent.get_state(env)
-
         # Decidir movimiento
         move = agent.get_action(state_old)
-        
         # Mapear el array [1,0,0] a la acción de C++
         action_cpp = snake_env.Action.STRAIGHT
         if move[1] == 1:
@@ -86,21 +87,40 @@ def train():
         result = env.Step(action_cpp)
         state_new = np.array(result.state, dtype=int)
         
-        # Entrenar memoria a corto plazo
-        agent.train_short_memory(state_old, move, result.reward, state_new, result.done)
+        # 1. Extraemos a variables locales
+        reward = result.reward
+        done = result.done
 
-        # Recordar
-        agent.remember(state_old, move, result.reward, state_new, result.done)
+        frame_iteration += 1
+        
+        if reward > 0: 
+            frame_iteration = 0
+            
+        # Lógica de Inanición
+        if frame_iteration > 100 * (result.score + 1):
+            done = True       # Ahora sí muere
+            reward = -10.0
+            
+        
+        # 2. USAR LAS VARIABLES LOCALES (reward, done), no result.reward
+        agent.train_short_memory(state_old, move, reward, state_new, done)
+        agent.remember(state_old, move, reward, state_new, done)
 
-        if result.done:
+        # 3. USAR LA VARIABLE LOCAL done
+        if done:
             # La serpiente murió. Reiniciar partida y entrenar memoria a largo plazo.
             env.Reset()
             agent.n_games += 1
             agent.train_long_memory()
+            frame_iteration = 0
 
-            if result.score > record:
-                record = result.score
-                agent.model.save() # Guarda el modelo si rompe récord
+            num_iteration += 1
+            
+            better = result.score > record
+            if better or num_iteration % 1000 == 0:
+                record = result.score if better else record
+                file_name = 'BestModel.pth' if better else f"model_{num_iteration}.pth"
+                agent.model.save(num_iteration, better, file_name)
 
             print(f'Partida: {agent.n_games} | Puntuación: {result.score} | Récord: {record}')
 
